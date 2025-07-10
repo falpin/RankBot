@@ -1,0 +1,4 @@
+TelegramTextApp
+dotenv
+requests
+selenium
