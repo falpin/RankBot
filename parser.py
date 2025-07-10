@@ -8,7 +8,11 @@ from selenium.webdriver.chrome.service import Service
 import os
 import sys
 
+
+driver_path = ChromeDriverManager().install()
+
 def scrape_magtu_data():
+    global driver_path
     # Проверяем и устанавливаем зависимости для Linux
 
     options = Options()
@@ -21,7 +25,6 @@ def scrape_magtu_data():
     options.add_argument("--window-size=1920,1080")
     
     # Установка ChromeDriver
-    driver_path = ChromeDriverManager().install()
     
     # Проверяем существование драйвера
     if not os.path.exists(driver_path):
