@@ -25,8 +25,8 @@ def install_chrome_linux():
 
 def scrape_magtu_data():
     # Проверяем и устанавливаем зависимости для Linux
-    if sys.platform == 'linux':
-        install_chrome_linux()
+    # if sys.platform == 'linux':
+        # install_chrome_linux()
 
     options = Options()
     options.add_argument("--headless")
