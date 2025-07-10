@@ -52,7 +52,7 @@ def scrape_magtu_data():
         
         # Парсим таблицу
         time.sleep(2)
-        table = driver.find_element(By.CSS_SELECTOR, "table"))
+        table = driver.find_element(By.CSS_SELECTOR, "table")
         rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
         
         for row in rows:
