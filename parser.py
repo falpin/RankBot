@@ -6,38 +6,72 @@ import time
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import os
+import sys
+
+def install_chrome_linux():
+    """Устанавливает Chrome и необходимые зависимости в Linux"""
+    if sys.platform != 'linux':
+        return
+    
+    print("Установка Chrome и зависимостей...")
+    os.system('apt-get update -y')
+    os.system('apt-get install -y wget gnupg')
+    os.system('wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -')
+    os.system('sh -c \'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list\'')
+    os.system('apt-get update -y')
+    os.system('apt-get install -y google-chrome-stable')
+    os.system('apt-get install -y libxss1 libappindicator1 libindicator7')
+    os.system('apt-get install -y fonts-liberation libasound2 libatk-bridge2.0-0 libgtk-3-0 libnspr4 libnss3 xdg-utils')
 
 def scrape_magtu_data():
+    # Проверяем и устанавливаем зависимости для Linux
+    if sys.platform == 'linux':
+        install_chrome_linux()
+
     options = Options()
     options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--window-size=1920,1080")
     
-    # Принудительно устанавливаем ChromeDriver
+    # Установка ChromeDriver
     driver_path = ChromeDriverManager().install()
     
-    # Проверяем, что файл существует
+    # Проверяем существование драйвера
     if not os.path.exists(driver_path):
         raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
 
     # Устанавливаем права
     os.chmod(driver_path, 0o755)
     
-    # Создаем сервис с установленным драйвером
+    # Создаем сервис
     service = Service(driver_path)
-    driver = webdriver.Chrome(service=service, options=options)
-
+    
+    try:
+        driver = webdriver.Chrome(service=service, options=options)
+    except Exception as e:
+        print(f"Ошибка при запуске Chrome: {str(e)}")
+        print("Попытка установки дополнительных зависимостей...")
+        if sys.platform == 'linux':
+            os.system('apt-get install -y libgbm1')
+        driver = webdriver.Chrome(service=service, options=options)
+    
     result_dict = {}
     
     try:
         driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
-        time.sleep(2)
+        time.sleep(3)
         
         # Выбираем институт
         institute_select = Select(driver.find_element(By.ID, "dep"))
         institute_select.select_by_value("08")
-        time.sleep(1)
+        time.sleep(2)
         
         # Ждем загрузки и выбираем специальность
-        time.sleep(2)
+        time.sleep(3)
         spec_select = Select(driver.find_element(By.ID, "spec"))
         found_specialty = False
         for option in spec_select.options:
@@ -51,7 +85,7 @@ def scrape_magtu_data():
             return {}
         
         # Парсим таблицу
-        time.sleep(2)
+        time.sleep(3)
         table = driver.find_element(By.CSS_SELECTOR, "table")
         rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
         
@@ -71,18 +105,17 @@ def scrape_magtu_data():
                 "Оригинал": cells[4].text.strip(),
                 "Основание приема": cells[5].text.strip(),
                 "Приоритет": int(cells[7].text.strip()),
-                "Поступил": admitted  # Добавляем статус поступления
+                "Поступил": admitted
             }
         
         return result_dict
         
     except Exception as e:
-        print(f"Произошла ошибка: {str(e)}")
+        print(f"Произошла ошибка при работе: {str(e)}")
         return {}
     finally:
         driver.quit()
 
-# Пример использования
 if __name__ == "__main__":
     data = scrape_magtu_data()
     print("Полученные данные:")
