@@ -5,12 +5,24 @@ from selenium.webdriver.chrome.options import Options
 import time
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
+import os
 
 def scrape_magtu_data():
     options = Options()
     options.add_argument("--headless")
     
-    service = Service(ChromeDriverManager().install())
+    # Принудительно устанавливаем ChromeDriver
+    driver_path = ChromeDriverManager().install()
+    
+    # Проверяем, что файл существует
+    if not os.path.exists(driver_path):
+        raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
+
+    # Устанавливаем права
+    os.chmod(driver_path, 0o755)
+    
+    # Создаем сервис с установленным драйвером
+    service = Service(driver_path)
     driver = webdriver.Chrome(service=service, options=options)
     
     result_dict = {}
@@ -40,7 +52,7 @@ def scrape_magtu_data():
         
         # Парсим таблицу
         time.sleep(2)
-        table = driver.find_element(By.CSS_SELECTOR, "table")
+        table = driver.find_element(By.CSS_SELECTOR, "table"))
         rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
         
         for row in rows:
