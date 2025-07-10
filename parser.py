@@ -3,17 +3,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 import time
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 
 def scrape_magtu_data():
     options = Options()
     options.add_argument("--headless")
-    options.add_argument("--no-sandbox")  # Добавьте это для Linux
-    options.add_argument("--disable-dev-shm-usage")  # Добавьте это для Linux
     
-    # Укажите явный путь к ChromeDriver
-    service = Service('/path/to/chromedriver')  # Замените на актуальный путь
+    service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
+    
     result_dict = {}
     
     try:
