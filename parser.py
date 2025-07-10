@@ -8,70 +8,64 @@ from selenium.webdriver.chrome.service import Service
 import os
 import sys
 
-def install_chrome_linux():
-    """Устанавливает Chrome и необходимые зависимости в Linux"""
-    if sys.platform != 'linux':
-        return
+# Глобальные переменные для кэширования драйвера и сервиса
+_DRIVER_INSTALLED = False
+_SERVICE = None
+
+def install_dependencies():
+    """Устанавливает зависимости только один раз при первом запуске"""
+    global _DRIVER_INSTALLED, _SERVICE
     
-    print("Установка Chrome и зависимостей...")
-    os.system('apt-get update -y')
-    os.system('apt-get install -y wget gnupg')
-    os.system('wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -')
-    os.system('sh -c \'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list\'')
-    os.system('apt-get update -y')
-    os.system('apt-get install -y google-chrome-stable')
-    os.system('apt-get install -y libxss1 libappindicator1 libindicator7')
-    os.system('apt-get install -y fonts-liberation libasound2 libatk-bridge2.0-0 libgtk-3-0 libnspr4 libnss3 xdg-utils')
+    if _DRIVER_INSTALLED:
+        return _SERVICE
+    
+    # Проверяем и устанавливаем ChromeDriver
+    driver_path = ChromeDriverManager().install()
+    
+    if not os.path.exists(driver_path):
+        raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
+
+    os.chmod(driver_path, 0o755)
+    
+    # Создаем сервис
+    _SERVICE = Service(driver_path)
+    _DRIVER_INSTALLED = True
+    
+    return _SERVICE
 
 def scrape_magtu_data():
-    # Проверяем и устанавливаем зависимости для Linux
-    if sys.platform == 'linux':
-        install_chrome_linux()
-
+    global _SERVICE
+    
+    # Проверяем и устанавливаем зависимости (только при первом вызове)
+    if not _DRIVER_INSTALLED:
+        _SERVICE = install_dependencies()
+    
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
     
-    # Установка ChromeDriver
-    driver_path = ChromeDriverManager().install()
-    
-    # Проверяем существование драйвера
-    if not os.path.exists(driver_path):
-        raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
-
-    # Устанавливаем права
-    os.chmod(driver_path, 0o755)
-    
-    # Создаем сервис
-    service = Service(driver_path)
-    
     try:
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = webdriver.Chrome(service=_SERVICE, options=options)
     except Exception as e:
         print(f"Ошибка при запуске Chrome: {str(e)}")
-        print("Попытка установки дополнительных зависимостей...")
-        if sys.platform == 'linux':
-            os.system('apt-get install -y libgbm1')
-        driver = webdriver.Chrome(service=service, options=options)
+        return {}
     
     result_dict = {}
     
     try:
         driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
-        time.sleep(3)
+        time.sleep(2)
         
         # Выбираем институт
         institute_select = Select(driver.find_element(By.ID, "dep"))
         institute_select.select_by_value("08")
-        time.sleep(2)
+        time.sleep(1)
         
         # Ждем загрузки и выбираем специальность
-        time.sleep(3)
+        time.sleep(2)
         spec_select = Select(driver.find_element(By.ID, "spec"))
         found_specialty = False
         for option in spec_select.options:
@@ -85,7 +79,7 @@ def scrape_magtu_data():
             return {}
         
         # Парсим таблицу
-        time.sleep(3)
+        time.sleep(2)
         table = driver.find_element(By.CSS_SELECTOR, "table")
         rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
         
@@ -117,9 +111,10 @@ def scrape_magtu_data():
         driver.quit()
 
 if __name__ == "__main__":
-    data = scrape_magtu_data()
-    print("Полученные данные:")
-    for snils, info in data.items():
-        print(f"\nСНИЛС/ID: {snils}")
-        for key, value in info.items():
-            print(f"{key}: {value}")
+    # Первый вызов - будет установка драйвера
+    data1 = scrape_magtu_data()
+    print(f"Найдено {len(data1)} записей")
+    
+    # Последующие вызовы - используют уже установленный драйвер
+    data2 = scrape_magtu_data()
+    print(f"Найдено {len(data2)} записей")
