@@ -1,0 +1,44 @@
+name: Развертывание проекта
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Настройка SSH
+        run: |
+          mkdir -p ~/.ssh
+          
+      - name: Очистка старого .env
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            rm -rf /tmp/.env  # Удаляем, если это директория
+      - name: отправка .prod.env
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: ".prod.env"
+          target: "/tmp/.env"
+      
+      
+      - name: Деполой
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            chmod +x ~/deploy.sh
+            ~/deploy.sh ${{ github.repository_owner }} ${{ github.event.repository.name }}
