@@ -3,61 +3,41 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 import time
-from webdriver_manager.firefox import GeckoDriverManager
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import os
-import sys
-
-
-driver_path = ChromeDriverManager().install()
 
 def scrape_magtu_data():
-    global driver_path
-    # Проверяем и устанавливаем зависимости для Linux
-
-    options = webdriver.ChromeOptions()
+    options = Options()
     options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--disable-extensions")
-    options.add_argument("--window-size=1920,1080")
     
-    # Установка ChromeDriver
+    # Принудительно устанавливаем ChromeDriver
+    driver_path = ChromeDriverManager().install()
     
-    # Проверяем существование драйвера
-    # if not os.path.exists(driver_path):
-    #     raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
+    # Проверяем, что файл существует
+    if not os.path.exists(driver_path):
+        raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
 
     # Устанавливаем права
-    # os.chmod(driver_path, 0o755)
+    os.chmod(driver_path, 0o755)
     
-    # Создаем сервис
-    service = webdriver.ChromeService(driver_path)
-    
-    try:
-        driver = webdriver.Chrome(service=service, options=options)
-    except Exception as e:
-        print(f"Ошибка при запуске Chrome: {str(e)}")
-        print("Попытка установки дополнительных зависимостей...")
-        if sys.platform == 'linux':
-            os.system('apt-get install -y libgbm1')
-        driver = webdriver.Chrome(service=service, options=options)
+    # Создаем сервис с установленным драйвером
+    service = Service(driver_path)
+    driver = webdriver.Chrome(service=service, options=options)
     
     result_dict = {}
     
     try:
         driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
-        time.sleep(3)
+        time.sleep(2)
         
         # Выбираем институт
         institute_select = Select(driver.find_element(By.ID, "dep"))
         institute_select.select_by_value("08")
-        time.sleep(2)
+        time.sleep(1)
         
         # Ждем загрузки и выбираем специальность
-        time.sleep(3)
+        time.sleep(2)
         spec_select = Select(driver.find_element(By.ID, "spec"))
         found_specialty = False
         for option in spec_select.options:
@@ -71,8 +51,8 @@ def scrape_magtu_data():
             return {}
         
         # Парсим таблицу
-        time.sleep(3)
-        table = driver.find_element(By.CSS_SELECTOR, "table")
+        time.sleep(2)
+        table = driver.find_element(By.CSS_SELECTOR, "table"))
         rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
         
         for row in rows:
@@ -91,17 +71,18 @@ def scrape_magtu_data():
                 "Оригинал": cells[4].text.strip(),
                 "Основание приема": cells[5].text.strip(),
                 "Приоритет": int(cells[7].text.strip()),
-                "Поступил": admitted
+                "Поступил": admitted  # Добавляем статус поступления
             }
         
         return result_dict
         
     except Exception as e:
-        print(f"Произошла ошибка при работе: {str(e)}")
+        print(f"Произошла ошибка: {str(e)}")
         return {}
     finally:
         driver.quit()
 
+# Пример использования
 if __name__ == "__main__":
     data = scrape_magtu_data()
     print("Полученные данные:")
