@@ -26,7 +26,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование скрипта
-COPY bot.py .
+COPY . .
 
 # Установка переменных среды для headless-режима
 ENV DISPLAY=:99
