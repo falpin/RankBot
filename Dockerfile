@@ -26,7 +26,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование скрипта
-COPY your_script_name.py .
+COPY bot.py .
 
 # Установка переменных среды для headless-режима
 ENV DISPLAY=:99
@@ -46,4 +46,4 @@ exec "$@"' > /entrypoint.sh \
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Команда для запуска скрипта
-CMD ["python", "your_script_name.py"]
+CMD ["python", "bot.py"]
