@@ -2,3 +2,4 @@ TelegramTextApp
 dotenv
 requests
 selenium
+webdriver_manager
