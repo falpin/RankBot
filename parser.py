@@ -3,6 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 import time
+from webdriver_manager.firefox import GeckoDriverManager
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import os
@@ -15,26 +16,25 @@ def scrape_magtu_data():
     global driver_path
     # Проверяем и устанавливаем зависимости для Linux
 
-    options = Options()
+    options = webdriver.ChromeOptions()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-extensions")
-    options.add_argument("--remote-debugging-port=9222")
     options.add_argument("--window-size=1920,1080")
     
     # Установка ChromeDriver
     
     # Проверяем существование драйвера
-    if not os.path.exists(driver_path):
-        raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
+    # if not os.path.exists(driver_path):
+    #     raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
 
     # Устанавливаем права
-    os.chmod(driver_path, 0o755)
+    # os.chmod(driver_path, 0o755)
     
     # Создаем сервис
-    service = Service(driver_path)
+    service = webdriver.ChromeService(driver_path)
     
     try:
         driver = webdriver.Chrome(service=service, options=options)
