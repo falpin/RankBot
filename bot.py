@@ -24,6 +24,10 @@ async def ranked(tta_data):
     
     if rank_data:
         admitted_students = {snils: info for snils, info in rank_data.items() if info["Поступил"]}
+        count_priority = sum(
+            1 for info in rank_data.values() 
+            if info.get("Приоритет") == 1
+        )
         admitted_points = [int(info["Баллы"]) for info in admitted_students.values()]
         
         my_points = None
@@ -46,6 +50,7 @@ async def ranked(tta_data):
         data.update({
             'total_students': len(rank_data),
             'admitted_students': len(admitted_points),
+            'count_priority': count_priority,
             'my_admitted_position': my_admitted_pos,
             'alina_admitted_position': alina_admitted_pos,
             'my_points': my_points,

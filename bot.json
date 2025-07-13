@@ -18,7 +18,7 @@
 
         "main":{
             "loading":true,
-            "text":"*Всего абитуриентов:* {total_students} \n*Поступивших абитуриентов:* {admitted_students} \n\n@falbue \n*Баллы:* {my_points} \n*Место:* {my_admitted_position} \n\n@pinghoyk \n*Баллы:* {alina_points} \n*Место:* {alina_admitted_position}",
+            "text":"*Всего абитуриентов:* {total_students} \n*Поступивших абитуриентов:* {admitted_students}\n*Абитуриентов с приоритетом 1:* {count_priority} \n\n@falbue \n*Баллы:* {my_points} \n*Место:* {my_admitted_position} \n\n@pinghoyk \n*Баллы:* {alina_points} \n*Место:* {alina_admitted_position}",
             "function":"ranked",
             "keyboard":{
                 "main":"🔄 Обновить данные"
