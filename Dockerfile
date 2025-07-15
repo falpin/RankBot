@@ -21,6 +21,8 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean autoclean \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
+RUN apt-get update && apt-get install -y git
+
 # Установка Python зависимостей
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
