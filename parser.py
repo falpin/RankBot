@@ -7,8 +7,44 @@ import time
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 import os
+import json
+from datetime import datetime
+from dotenv import load_dotenv
+
+load_dotenv()
+DATA_FILE = os.getenv("DATA_FILE")
+CACHE_EXPIRE_HOURS = 1
+
+def is_cache_valid():
+    if not os.path.exists(DATA_FILE):
+        return False
+    
+    file_time = os.path.getmtime(DATA_FILE)
+    cache_age = (time.time() - file_time) / 3600
+    return cache_age < CACHE_EXPIRE_HOURS
+
+def save_data(data):
+    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+        json.dump({
+            'timestamp': datetime.now().isoformat(),
+            'data': data
+        }, f, ensure_ascii=False, indent=2)
+
+def load_data():
+    try:
+        with open(DATA_FILE, 'r', encoding='utf-8') as f:
+            content = json.load(f)
+            return content['data']
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+        return None
 
 def scrape_magtu_data():
+    if is_cache_valid():
+        cached_data = load_data()
+        if cached_data:
+            print("Используются кэшированные данные")
+            return cached_data
+
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
@@ -82,9 +118,10 @@ def scrape_magtu_data():
                     "Оригинал": cells[4].text.strip(),
                     "Основание приема": cells[5].text.strip(),
                     "Приоритет": int(cells[7].text.strip()),
-                    "Поступил": admitted
+                    "Поступил": admitted,
+                    "Экзамены": cells[3].text.strip()
                 }
-            
+            save_data(result_dict)
             return result_dict
             
         except Exception as e:
@@ -97,11 +134,6 @@ def scrape_magtu_data():
         print(f"Произошла ошибка при настройке драйвера: {str(e)}")
         return {}
 
-# Пример использования
+
 if __name__ == "__main__":
     data = scrape_magtu_data()
-    print("Полученные данные:")
-    for snils, info in data.items():
-        print(f"\nСНИЛС/ID: {snils}")
-        for key, value in info.items():
-            print(f"{key}: {value}")

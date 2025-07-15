@@ -1,3 +1,5 @@
+VERSION="1.0.3"
+
 import requests
 import json
 from TelegramTextApp.database import SQL_request
@@ -12,6 +14,82 @@ if __name__ == "__main__":
     DATABASE = os.getenv("DATABASE")
     DEBUG = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
     TelegramTextApp.start(TOKEN, "bot.json", DATABASE, debug=DEBUG)
+
+async def count_eligible_users(data, select_points=200):
+    count = 0
+    for user_data in data.values():
+        try:
+            points = int(user_data["Баллы"].replace(' ', ''))
+            priority = user_data["Приоритет"]
+            admitted = user_data["Поступил"]
+            
+            if points > select_points and priority == 1:
+                count += 1
+        except (ValueError, KeyError):
+            continue
+    return count
+
+async def get_min_score_top_25_priority1(data):
+    priority1_users = []
+    
+    for user_data in data.values():
+        try:
+            if user_data["Приоритет"] == 1:
+                points = int(user_data["Баллы"].replace(' ', ''))
+                priority1_users.append(points)
+        except (ValueError, KeyError):
+            continue
+    
+    if len(priority1_users) < 25:
+        return 100
+    
+    top25 = sorted(priority1_users, reverse=True)[:25]
+    
+    return top25[-1]
+
+async def exams(data, snils):
+    if snils not in data:
+        return "Данные не найдены"
+    
+    student_data = data[snils]
+    exams_str = student_data.get("Экзамены", "")
+    
+    # Определяем тип сдачи (егэ/вуз)
+    exam_type = "егэ" if "егэ" in exams_str.lower() else "вуз"
+    
+    # Получаем баллы
+    total_points = student_data.get("Баллы", "0")
+    additional_points = student_data.get("Доп", "0")
+    points = str(int(total_points) - int(additional_points)) if additional_points.isdigit() and total_points.isdigit() else total_points
+    
+    # Разбираем экзамены и сопоставляем с предметами
+    exam_scores = []
+    for exam in exams_str.split(','):
+        exam = exam.strip()
+        if '-' in exam:
+            exam = exam.split('-')[1].strip()
+        exam = exam.split('(')[0].strip()
+        exam_scores.append(exam)
+    
+    # Предметы в нужном порядке
+    subjects = ["Русский", "Математика", "Информатика"]
+    
+    # Формируем результат
+    result = [
+        f"*Всего баллов:* `{total_points}`",
+        f"**>*Тип:* {exam_type}",
+        f">*Дополнительные баллы:* {additional_points}",
+        f">",
+        ">*Баллы за экзамены:*"
+    ]
+    
+    # Добавляем предметы с баллами
+    for subject, score in zip(subjects, exam_scores):
+        result.append(f">*{subject}:* {score}")
+    
+    text = "\n".join(result)
+    text = (f"{text}\n>*Итого:* {points}")
+    return text
 
 
 async def ranked(tta_data):
@@ -53,8 +131,10 @@ async def ranked(tta_data):
             'count_priority': count_priority,
             'my_admitted_position': my_admitted_pos,
             'alina_admitted_position': alina_admitted_pos,
-            'my_points': my_points,
-            'alina_points': alina_points
+            'count_eligible_users_200': await count_eligible_users(rank_data, 200),
+            'get_min_score': await get_min_score_top_25_priority1(rank_data),
+            'exams': await exams(rank_data, MY_SNILS),
+            'exams_alina': await exams(rank_data, ALINA),
         })
-    
+
     return data
