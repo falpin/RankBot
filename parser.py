@@ -50,7 +50,6 @@ def scrape_magtu_data(speciality):  # получение списка, пода�
     result_dict = {}
     
     try:
-        print("Открываем страницу")
         driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
         
         # список всех институтов
@@ -106,7 +105,6 @@ def scrape_magtu_data(speciality):  # получение списка, пода�
                 "Экзамены": cells[3].text.strip()
             }
         
-        save_data(result_dict)
         return result_dict
         
     except Exception as e:
@@ -131,7 +129,7 @@ def get_applicant_priorities(snils):  # данные абитуриента
         search_button = wait.until(EC.element_to_be_clickable((By.ID, "poisk_abitur")))
         search_button.click()
         
-        time.sleep(0.1)
+        time.sleep(1)
         
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.table_wrapper table.table_abit")))
         
@@ -163,6 +161,6 @@ def get_applicant_priorities(snils):  # данные абитуриента
         driver.quit()
 
 if __name__ == "__main__":
-    data = scrape_magtu_data("46.03.02 Документоведение и архивоведение (документоведение и документационное обеспечение управления) (бак-т)")
-    # data = get_applicant_priorities("17582950007")
+    # data = scrape_magtu_data("46.03.02 Документоведение и архивоведение (документоведение и документационное обеспечение управления) (бак-т)")
+    data = get_applicant_priorities("19337844813")
     print(data)
