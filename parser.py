@@ -132,8 +132,56 @@ def scrape_magtu_data():
         print(f"Произошла ошибка при настройке драйвера: {str(e)}")
         return {}
 
-# def a
 
+def get_applicant_priorities(snils):
+    """
+    Получает список приоритетов абитуриента по его СНИЛС
+    Возвращает список словарей с информацией о приоритетах
+    """
+    driver, wait = setup_driver()
+    if not driver or not wait:
+        return []
+    
+    try:
+        driver.get("https://www.magtu.ru/abit/rating.php")
+        
+        snils_input = wait.until(EC.presence_of_element_located((By.ID, "id_abitur")))
+        snils_input.clear()
+        snils_input.send_keys(snils)
+        
+        search_button = wait.until(EC.element_to_be_clickable((By.ID, "poisk_abitur")))
+        search_button.click()
+        
+        time.sleep(0.1)
+        
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.table_wrapper table.table_abit")))
+        
+        priorities = []
+        table_wrapper = driver.find_element(By.CLASS_NAME, "table_wrapper")
+        table = table_wrapper.find_element(By.TAG_NAME, "table")
+        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
+        
+        for row in rows:
+            cells = row.find_elements(By.TAG_NAME, "td")
+            if len(cells) < 5:
+                continue
+                
+            priority = {
+                "Приоритет": int(cells[0].text.strip()),
+                "Направление": cells[1].text.strip(),
+                "Форма обучения": cells[2].text.strip(),
+                "Основание приема": cells[3].text.strip(),
+                "Баллы": int(cells[4].text.strip()) if cells[4].text.strip().isdigit() else 0
+            }
+            priorities.append(priority)
+            
+        return priorities
+        
+    except Exception as e:
+        print(f"Ошибка при получении приоритетов для СНИЛС {snils}: {str(e)}")
+        return []
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
     data = scrape_magtu_data()
