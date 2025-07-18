@@ -9,35 +9,6 @@ from selenium.webdriver.chrome.service import Service
 import os
 import json
 from datetime import datetime
-from dotenv import load_dotenv
-
-load_dotenv()
-DATA_FILE = os.getenv("DATA_FILE")
-CACHE_EXPIRE_HOURS = 1
-
-def is_cache_valid():
-    if not os.path.exists(DATA_FILE):
-        return False
-    
-    file_time = os.path.getmtime(DATA_FILE)
-    cache_age = (time.time() - file_time) / 3600
-    return cache_age < CACHE_EXPIRE_HOURS
-
-def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump({
-            'timestamp': datetime.now().isoformat(),
-            'data': data
-        }, f, ensure_ascii=False, indent=2)
-
-def load_data():
-    try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            content = json.load(f)
-            return content['data']
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return None
-
 
 def setup_driver():  # настройки драйвера
     options = Options()
@@ -45,25 +16,24 @@ def setup_driver():  # настройки драйвера
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # Увеличиваем время ожидания для WebDriverManager
+    # время ожидания для WebDriverManager
     os.environ['WDM_LOCAL'] = '1'
     os.environ['WDM_LOG_LEVEL'] = '0'
     
     try:
-        # Устанавливаем ChromeDriver с явным указанием версии
+        # ChromeDriver с явным указанием версии
         driver_path = ChromeDriverManager().install()
         
-        # Проверяем, что файл существует
+        #  файл существует
         if not os.path.exists(driver_path):
             raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
 
-        # Устанавливаем права
-        os.chmod(driver_path, 0o755)
+        os.chmod(driver_path, 0o755) # права
         
-        # Создаем сервис с установленным драйвером
+        # сервис с установленным драйвером
         service = Service(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 1)  # Увеличиваем время ожидания до 1 секунд
+        wait = WebDriverWait(driver, 1)  # время ожидания до 1 секунд
         
         return driver, wait
         
@@ -72,13 +42,7 @@ def setup_driver():  # настройки драйвера
         return None, None
 
 
-def scrape_magtu_data(speciality):
-    if is_cache_valid():
-        cached_data = load_data()
-        if cached_data:
-            print("Используются кэшированные данные")
-            return cached_data
-
+def scrape_magtu_data(speciality):  # получение списка, подавших документы 
     driver, wait = setup_driver()
     if not driver or not wait:
         return {}
@@ -89,25 +53,40 @@ def scrape_magtu_data(speciality):
         print("Открываем страницу")
         driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
         
+        # список всех институтов
         institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
-        Select(institute_select).select_by_value("16")
+        institutes = [option.get_attribute("value") 
+                      for option in Select(institute_select).options[1:]]  # Исключаем первый элемент
         
-        spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
         found_specialty = False
-        for option in Select(spec_select).options:
-            if speciality in option.text:
-                option.click()
-                found_specialty = True
+        for institute in institutes:
+            # выбор института
+            Select(institute_select).select_by_value(institute)
+            time.sleep(0.5)  # Ожидание обновления списка специальностей
+            
+            # список специальностей для текущего института
+            try:
+                spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
+                for option in Select(spec_select).options:
+                    if option.text.strip() == speciality:
+                        option.click()
+                        found_specialty = True
+                        break
+            except:
+                continue  # пропуск института если не удалось загрузить специальности
+            
+            if found_specialty:
                 break
-        
+                
         if not found_specialty:
-            print(f"Специальность '{speciality}' не найдена")
+            print(f"Специальность '{speciality}' не найдена ни в одном институте")
             return {}
         
         time.sleep(0.3)  # дополнительное время для загрузки таблицы
         
+        # Обработка таблицы с данными
         table = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
+        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # пропускаем заголовок
         
         for row in rows:
             cells = row.find_elements(By.TAG_NAME, "td")
@@ -115,7 +94,6 @@ def scrape_magtu_data(speciality):
                 continue
                 
             snils_id = cells[0].text.strip()
-            
             admitted = "yes" in row.get_attribute("class").split()
             
             result_dict[snils_id] = {
@@ -127,6 +105,7 @@ def scrape_magtu_data(speciality):
                 "Поступил": admitted,
                 "Экзамены": cells[3].text.strip()
             }
+        
         save_data(result_dict)
         return result_dict
         
@@ -137,11 +116,7 @@ def scrape_magtu_data(speciality):
         driver.quit()
 
 
-def get_applicant_priorities(snils):
-    """
-    Получает список приоритетов абитуриента по его СНИЛС
-    Возвращает список словарей с информацией о приоритетах
-    """
+def get_applicant_priorities(snils):  # данные абитуриента
     driver, wait = setup_driver()
     if not driver or not wait:
         return []
@@ -163,7 +138,7 @@ def get_applicant_priorities(snils):
         priorities = []
         table_wrapper = driver.find_element(By.CLASS_NAME, "table_wrapper")
         table = table_wrapper.find_element(By.TAG_NAME, "table")
-        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
+        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # пропускаем заголовок
         
         for row in rows:
             cells = row.find_elements(By.TAG_NAME, "td")
@@ -188,49 +163,6 @@ def get_applicant_priorities(snils):
         driver.quit()
 
 if __name__ == "__main__":
-    data = scrape_magtu_data()
+    data = scrape_magtu_data("46.03.02 Документоведение и архивоведение (документоведение и документационное обеспечение управления) (бак-т)")
     # data = get_applicant_priorities("17582950007")
     print(data)
-
-
-# from selenium.webdriver.support.ui import Select, WebDriverWait
-# from selenium.webdriver.support import expected_conditions as EC
-# from selenium.webdriver.common.by import By
-# from selenium.common.exceptions import TimeoutException
-
-# # Получаем список всех институтов (значений <option> кроме первого)
-# institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
-# institute_options = Select(institute_select).options[1:]  # Пропускаем первый элемент (заголовок)
-
-# found_specialty = False
-
-# # Перебираем все институты по очереди
-# for option in institute_options:
-#     institute_value = option.get_attribute("value")
-    
-#     # Выбираем текущий институт
-#     institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
-#     Select(institute_select).select_by_value(institute_value)
-    
-#     try:
-#         # Ждем появления хотя бы одной специальности (кроме заголовка)
-#         WebDriverWait(driver, 5).until(
-#             EC.presence_of_element_located((By.XPATH, "//select[@id='spec']/option[2]"))
-#         )
-#     except TimeoutException:
-#         continue  # В этом институте нет специальностей, переходим к следующему
-    
-#     # Ищем нужную специальность в текущем институте
-#     spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
-#     for spec_option in Select(spec_select).options:
-#         if speciality in spec_option.text:
-#             spec_option.click()
-#             found_specialty = True
-#             break  # Выходим из внутреннего цикла
-    
-#     if found_specialty:
-#         break  # Выходим из внешнего цикла после успешного выбора
-
-# if not found_specialty:
-#     print(f"Специальность '{speciality}' не найдена ни в одном институте")
-#     return {}
