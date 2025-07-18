@@ -17,12 +17,27 @@
         },
 
         "main":{
+            "text":"Выберите инерисующее направление",
+            "keyboard":"speciality"
+        },
+
+        "ranked":{
             "loading":true,
             "text":"*Всего абитуриентов:* {total_students} \n*Поступивших абитуриентов:* {admitted_students}\n*Абитуриентов с приоритетом 1:* {count_priority}\n*Абитуринтов с баллом \\> 200:* `{count_eligible_users_200}`\n*Минимальный балл для поступления:* `{get_min_score}`\n\n@falbue \n{exams}\n*Место:* {my_admitted_position} \n\n@pinghoyk \n{exams_alina} \n*Место:* {alina_admitted_position}",
-            "function":"ranked",
             "keyboard":{
                 "main":"🔄 Обновить данные"
             }
+        },
+
+        "snils":{
+            "text":"Введите свой снилс, для поиска в списках абитуриентов",
+            "input":{
+                "data":"snils",
+                "menu":"main",
+                "function":"add_snils"
+            },
+            "return":"main"
+
         }
     },
 
@@ -37,6 +52,11 @@
         "start":{
             "description":"🔄 Перезапуск бота",
             "menu":"main"
+        },
+
+        "snils":{
+            "description":"Указать снилс",
+            "menu":"snils"
         }
     }
 }
