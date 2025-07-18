@@ -138,3 +138,13 @@ async def ranked(tta_data):
         })
 
     return data
+
+async def create_tables():
+    await SQL_request('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id INTEGER NOT NULL,
+        snils TEXT,
+        speciality JSON,
+        FOREIGN KEY (telegram_id) REFERENCES TTA(telegram_id)
+    )''')
