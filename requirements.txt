@@ -1,4 +1,4 @@
-git+https://github.com/falbue/TelegramTextApp.git@0.6.5.1
+git+https://github.com/falbue/TelegramTextApp.git@0.6.5.2
 dotenv
 requests
 selenium
