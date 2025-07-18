@@ -1,4 +1,4 @@
-VERSION="1.0.3"
+VERSION="1.0.4"
 
 import requests
 import json
@@ -6,7 +6,10 @@ from TelegramTextApp.database import SQL_request
 import TelegramTextApp
 import os
 from dotenv import load_dotenv
-from parser import scrape_magtu_data
+import parser
+import json
+from datetime import datetime, timedelta
+from TelegramTextApp.utils import markdown
 
 if __name__ == "__main__":
     load_dotenv()
@@ -14,6 +17,31 @@ if __name__ == "__main__":
     DATABASE = os.getenv("DATABASE")
     DEBUG = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
     TelegramTextApp.start(TOKEN, "bot.json", DATABASE, debug=DEBUG)
+
+
+async def create_tables():
+    await create_users()
+    await create_specialties()
+
+async def create_users():
+    await SQL_request('''
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        telegram_id INTEGER NOT NULL,
+        snils TEXT,
+        speciality JSON,
+        FOREIGN KEY (telegram_id) REFERENCES TTA(telegram_id)
+    )''')
+
+async def create_specialties():
+    await SQL_request('''
+    CREATE TABLE IF NOT EXISTS specialties (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        time_add TIMESTAMP,
+        data JSON
+    )''')
+
 
 async def count_eligible_users(data, select_points=200):
     count = 0
@@ -92,49 +120,107 @@ async def exams(data, snils):
     return text
 
 
-async def ranked(tta_data):
-    load_dotenv()
-    MY_SNILS = os.getenv("SNILS")
-    ALINA = os.getenv("ALINA")
+async def get_speciality(tta_data):
+    user_data = await SQL_request("SELECT * FROM users WHERE telegram_id=?", (tta_data["telegram_id"],), 'one')
+    snils = user_data['snils']
+    speciality = json.loads(user_data["speciality"])
+    speciality = speciality[int(tta_data["spec_number"])]
 
-    rank_data = scrape_magtu_data()
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    result = await SQL_request("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+    if not result:
+        await create_tables()
+
+
+
+    speciality_data = await SQL_request("SELECT * FROM specialties WHERE name=?", (speciality["Направление"],), 'one')
+    if not speciality_data:
+        rank_data = parser.scrape_magtu_data(speciality["Направление"])
+        await SQL_request('INSERT INTO specialties (name, time_add, data) VALUES (?, ?, ?)', (speciality["Направление"], current_time, json.dumps(rank_data)))
+
+    if speciality_data:
+        time_add_dt = datetime.strptime(speciality_data['time_add'], '%Y-%m-%d %H:%M:%S')
+        current_time_dt = datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S')
+        if current_time_dt - time_add_dt > timedelta(hours=1):
+            rank_data = parser.scrape_magtu_data(speciality["Направление"])
+            await SQL_request("UPDATE specialties SET data = ? WHERE name = ?", (rank_data, speciality["Направление"]))
+        else:
+            rank_data = (speciality_data["data"])
+
+
     data = {}
     
     if rank_data:
-        admitted_students = {snils: info for snils, info in rank_data.items() if info["Поступил"]}
-        count_priority = sum(
-            1 for info in rank_data.values() 
-            if info.get("Приоритет") == 1
-        )
+        # Фильтрация поступивших
+        admitted_students = {snils: info for snils, info in rank_data.items() if info.get("Поступил")}
         admitted_points = [int(info["Баллы"]) for info in admitted_students.values()]
-        
-        my_points = None
-        alina_points = None
-        
-        if MY_SNILS in rank_data:
-            my_points = int(rank_data[MY_SNILS]["Баллы"])
-        if ALINA in rank_data:
-            alina_points = int(rank_data[ALINA]["Баллы"])
-        
-        my_admitted_pos = None
-        alina_admitted_pos = None
-        
-        if my_points is not None:
-            my_admitted_pos = sum(1 for points in admitted_points if points > my_points) + 1
-        
-        if alina_points is not None:
-            alina_admitted_pos = sum(1 for points in admitted_points if points > alina_points) + 1
-        
-        data.update({
+        count_priority = sum(1 for info in rank_data.values() if info.get("Приоритет") == 1)
+
+        # Получение данных текущего пользователя
+        user_info = rank_data.get(snils)
+        user_points = int(user_info["Баллы"]) if user_info else None
+        admitted_pos = None
+
+        # Корректный расчет позиции среди поступивших
+        if user_info and user_info.get("Поступил"):
+            # Считаем количество поступивших с баллами ВЫШЕ пользователя
+            higher_scores = sum(1 for points in admitted_points if points > user_points)
+            admitted_pos = higher_scores + 1  # Позиция = кол-во выше + 1
+
+        data = {
+            'speciality_name': markdown(speciality["Направление"], True),
             'total_students': len(rank_data),
             'admitted_students': len(admitted_points),
             'count_priority': count_priority,
-            'my_admitted_position': my_admitted_pos,
-            'alina_admitted_position': alina_admitted_pos,
+            'admitted_position': admitted_pos,  # Исправлено
             'count_eligible_users_200': await count_eligible_users(rank_data, 200),
             'get_min_score': await get_min_score_top_25_priority1(rank_data),
-            'exams': await exams(rank_data, MY_SNILS),
-            'exams_alina': await exams(rank_data, ALINA),
-        })
+            'exams': await exams(rank_data, snils),
+        }
 
     return data
+
+async def user_speciality(tta_data):
+    result = await SQL_request("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+    if not result:
+        await create_tables()
+
+    telegram_id = tta_data["telegram_id"]
+    user_data = await SQL_request("SELECT * FROM users WHERE telegram_id=?", (telegram_id,), 'one')
+
+    if not user_data:
+        return {"snils":"Укажите снилc"}
+
+    if not user_data["snils"]:
+        return {"snils":"Укажите снилс"}
+
+    if not user_data["speciality"]:
+        data = parser.get_applicant_priorities(user_data['snils'])
+        if data:
+            await SQL_request("UPDATE users SET speciality = ? WHERE telegram_id = ?", (json.dumps(data), telegram_id))
+            keyboard = {}
+            i = 0
+            for speciality in data:
+                keyboard[f"speciality|{i}"] = f"\\{speciality['Направление']}"
+                i += 1
+            return keyboard
+        else:
+            return {"main":"Обновить"}
+
+    if user_data["speciality"]:
+        keyboard = {}
+        i = 0
+        for speciality in json.loads(user_data["speciality"]):
+            keyboard[f"speciality|{i}"] = f"\\{speciality['Направление']}"
+            i += 1
+        return keyboard
+
+async def add_snils(tta_data):  # добавление снилса в базу
+    telegram_id = tta_data["telegram_id"]
+    snils = tta_data.get("snils")
+    token_data = await SQL_request("SELECT * FROM users WHERE telegram_id=?", (telegram_id,), 'one')
+    if token_data:
+        await SQL_request("UPDATE users SET snils = ? WHERE telegram_id = ?", (snils, telegram_id))
+    else:
+        await SQL_request('INSERT INTO users (telegram_id, snils) VALUES (?, ?)', (telegram_id, snils))

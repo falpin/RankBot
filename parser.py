@@ -9,131 +9,158 @@ from selenium.webdriver.chrome.service import Service
 import os
 import json
 from datetime import datetime
-from dotenv import load_dotenv
 
-load_dotenv()
-DATA_FILE = os.getenv("DATA_FILE")
-CACHE_EXPIRE_HOURS = 1
-
-def is_cache_valid():
-    if not os.path.exists(DATA_FILE):
-        return False
-    
-    file_time = os.path.getmtime(DATA_FILE)
-    cache_age = (time.time() - file_time) / 3600
-    return cache_age < CACHE_EXPIRE_HOURS
-
-def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump({
-            'timestamp': datetime.now().isoformat(),
-            'data': data
-        }, f, ensure_ascii=False, indent=2)
-
-def load_data():
-    try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            content = json.load(f)
-            return content['data']
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        return None
-
-def scrape_magtu_data():
-    if is_cache_valid():
-        cached_data = load_data()
-        if cached_data:
-            print("Используются кэшированные данные")
-            return cached_data
-
+def setup_driver():  # настройки драйвера
     options = Options()
     options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     
-    # Увеличиваем время ожидания для WebDriverManager
+    # время ожидания для WebDriverManager
     os.environ['WDM_LOCAL'] = '1'
     os.environ['WDM_LOG_LEVEL'] = '0'
     
     try:
-        # Устанавливаем ChromeDriver с явным указанием версии
+        # ChromeDriver с явным указанием версии
         driver_path = ChromeDriverManager().install()
         
-        # Проверяем, что файл существует
+        #  файл существует
         if not os.path.exists(driver_path):
             raise FileNotFoundError(f"ChromeDriver не найден по пути: {driver_path}")
 
-        # Устанавливаем права
-        os.chmod(driver_path, 0o755)
+        os.chmod(driver_path, 0o755) # права
         
-        # Создаем сервис с установленным драйвером
+        # сервис с установленным драйвером
         service = Service(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 20)  # Увеличиваем время ожидания до 20 секунд
+        wait = WebDriverWait(driver, 1)  # время ожидания до 1 секунд
         
-        result_dict = {}
+        return driver, wait
         
-        try:
-            # Открываем страницу
-            driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
-            time.sleep(3)  # Даем время для полной загрузки страницы
-            
-            # Ждем и выбираем институт
-            institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
-            Select(institute_select).select_by_value("08")
-            time.sleep(2)  # Даем время для обновления данных
-            
-            # Ждем и выбираем специальность
-            spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
-            found_specialty = False
-            for option in Select(spec_select).options:
-                if "Web-приложений" in option.text:
-                    option.click()
-                    found_specialty = True
-                    break
-            
-            if not found_specialty:
-                print("Специальность 'Web-приложений' не найдена")
-                return {}
-            
-            # Даем дополнительное время для загрузки таблицы
-            time.sleep(3)
-            
-            # Парсим таблицу
-            table = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
-            rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # Пропускаем заголовок
-            
-            for row in rows:
-                cells = row.find_elements(By.TAG_NAME, "td")
-                if len(cells) < 8:
-                    continue
-                    
-                snils_id = cells[0].text.strip()
-                
-                # Проверяем наличие класса 'yes' в строке
-                admitted = "yes" in row.get_attribute("class").split()
-                
-                result_dict[snils_id] = {
-                    "Баллы": cells[1].text.strip(),
-                    "Доп": cells[2].text.strip(),
-                    "Оригинал": cells[4].text.strip(),
-                    "Основание приема": cells[5].text.strip(),
-                    "Приоритет": int(cells[7].text.strip()),
-                    "Поступил": admitted,
-                    "Экзамены": cells[3].text.strip()
-                }
-            save_data(result_dict)
-            return result_dict
-            
-        except Exception as e:
-            print(f"Произошла ошибка при работе с сайтом: {str(e)}")
-            return {}
-        finally:
-            driver.quit()
-            
     except Exception as e:
         print(f"Произошла ошибка при настройке драйвера: {str(e)}")
-        return {}
+        return None, None
 
+
+def scrape_magtu_data(speciality):  # получение списка, подавших документы 
+    driver, wait = setup_driver()
+    if not driver or not wait:
+        return {}
+    
+    result_dict = {}
+    
+    try:
+        driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
+        
+        # список всех институтов
+        institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
+        institutes = [option.get_attribute("value") 
+                      for option in Select(institute_select).options[1:]]  # Исключаем первый элемент
+        
+        found_specialty = False
+        for institute in institutes:
+            # выбор института
+            Select(institute_select).select_by_value(institute)
+            time.sleep(0.5)  # Ожидание обновления списка специальностей
+            
+            # список специальностей для текущего института
+            try:
+                spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
+                for option in Select(spec_select).options:
+                    if option.text.strip() == speciality:
+                        option.click()
+                        found_specialty = True
+                        break
+            except:
+                continue  # пропуск института если не удалось загрузить специальности
+            
+            if found_specialty:
+                break
+                
+        if not found_specialty:
+            print(f"Специальность '{speciality}' не найдена ни в одном институте")
+            return {}
+        
+        time.sleep(0.3)  # дополнительное время для загрузки таблицы
+        
+        # Обработка таблицы с данными
+        table = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
+        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # пропускаем заголовок
+        
+        for row in rows:
+            cells = row.find_elements(By.TAG_NAME, "td")
+            if len(cells) < 8:
+                continue
+                
+            snils_id = cells[0].text.strip()
+            admitted = "yes" in row.get_attribute("class").split()
+            
+            result_dict[snils_id] = {
+                "Баллы": cells[1].text.strip(),
+                "Доп": cells[2].text.strip(),
+                "Оригинал": cells[4].text.strip(),
+                "Основание приема": cells[5].text.strip(),
+                "Приоритет": int(cells[7].text.strip()),
+                "Поступил": admitted,
+                "Экзамены": cells[3].text.strip()
+            }
+        
+        return result_dict
+        
+    except Exception as e:
+        print(f"Произошла ошибка при работе с сайтом: {str(e)}")
+        return {}
+    finally:
+        driver.quit()
+
+
+def get_applicant_priorities(snils):  # данные абитуриента
+    driver, wait = setup_driver()
+    if not driver or not wait:
+        return []
+    
+    try:
+        driver.get("https://www.magtu.ru/abit/rating.php")
+        
+        snils_input = wait.until(EC.presence_of_element_located((By.ID, "id_abitur")))
+        snils_input.clear()
+        snils_input.send_keys(snils)
+        
+        search_button = wait.until(EC.element_to_be_clickable((By.ID, "poisk_abitur")))
+        search_button.click()
+        
+        time.sleep(1)
+        
+        wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "div.table_wrapper table.table_abit")))
+        
+        priorities = []
+        table_wrapper = driver.find_element(By.CLASS_NAME, "table_wrapper")
+        table = table_wrapper.find_element(By.TAG_NAME, "table")
+        rows = table.find_elements(By.TAG_NAME, "tr")[1:]  # пропускаем заголовок
+        
+        for row in rows:
+            cells = row.find_elements(By.TAG_NAME, "td")
+            if len(cells) < 5:
+                continue
+                
+            priority = {
+                "Приоритет": int(cells[0].text.strip()),
+                "Направление": cells[1].text.strip(),
+                "Форма обучения": cells[2].text.strip(),
+                "Основание приема": cells[3].text.strip(),
+                "Баллы": int(cells[4].text.strip()) if cells[4].text.strip().isdigit() else 0
+            }
+            priorities.append(priority)
+            
+        return priorities
+        
+    except Exception as e:
+        print(f"Ошибка при получении приоритетов для СНИЛС {snils}: {str(e)}")
+        return []
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    data = scrape_magtu_data()
+    # data = scrape_magtu_data("46.03.02 Документоведение и архивоведение (документоведение и документационное обеспечение управления) (бак-т)")
+    data = get_applicant_priorities("19337844813")
+    print(data)
