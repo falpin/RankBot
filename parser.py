@@ -189,3 +189,48 @@ def get_applicant_priorities(snils):
 
 if __name__ == "__main__":
     data = scrape_magtu_data()
+    # data = get_applicant_priorities("17582950007")
+    print(data)
+
+
+# from selenium.webdriver.support.ui import Select, WebDriverWait
+# from selenium.webdriver.support import expected_conditions as EC
+# from selenium.webdriver.common.by import By
+# from selenium.common.exceptions import TimeoutException
+
+# # Получаем список всех институтов (значений <option> кроме первого)
+# institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
+# institute_options = Select(institute_select).options[1:]  # Пропускаем первый элемент (заголовок)
+
+# found_specialty = False
+
+# # Перебираем все институты по очереди
+# for option in institute_options:
+#     institute_value = option.get_attribute("value")
+    
+#     # Выбираем текущий институт
+#     institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
+#     Select(institute_select).select_by_value(institute_value)
+    
+#     try:
+#         # Ждем появления хотя бы одной специальности (кроме заголовка)
+#         WebDriverWait(driver, 5).until(
+#             EC.presence_of_element_located((By.XPATH, "//select[@id='spec']/option[2]"))
+#         )
+#     except TimeoutException:
+#         continue  # В этом институте нет специальностей, переходим к следующему
+    
+#     # Ищем нужную специальность в текущем институте
+#     spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
+#     for spec_option in Select(spec_select).options:
+#         if speciality in spec_option.text:
+#             spec_option.click()
+#             found_specialty = True
+#             break  # Выходим из внутреннего цикла
+    
+#     if found_specialty:
+#         break  # Выходим из внешнего цикла после успешного выбора
+
+# if not found_specialty:
+#     print(f"Специальность '{speciality}' не найдена ни в одном институте")
+#     return {}
