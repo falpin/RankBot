@@ -43,7 +43,7 @@ def scrape_magtu_data():
         cached_data = load_data()
         if cached_data:
             print("Используются кэшированные данные")
-            return cached_data
+            # return cached_data
 
     options = Options()
     options.add_argument("--headless")
@@ -68,19 +68,17 @@ def scrape_magtu_data():
         # Создаем сервис с установленным драйвером
         service = Service(driver_path)
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 20)  # Увеличиваем время ожидания до 20 секунд
+        wait = WebDriverWait(driver, 1)  # Увеличиваем время ожидания до 1 секунд
         
         result_dict = {}
         
         try:
-            # Открываем страницу
+            print("Открываем страницу")
             driver.get("https://www.magtu.ru/abit/6013-spiski-podavshikh-dokumenty-byudzhetnye-mesta.html")
-            time.sleep(3)  # Даем время для полной загрузки страницы
             
             # Ждем и выбираем институт
             institute_select = wait.until(EC.presence_of_element_located((By.ID, "dep")))
             Select(institute_select).select_by_value("08")
-            time.sleep(2)  # Даем время для обновления данных
             
             # Ждем и выбираем специальность
             spec_select = wait.until(EC.presence_of_element_located((By.ID, "spec")))
@@ -96,7 +94,7 @@ def scrape_magtu_data():
                 return {}
             
             # Даем дополнительное время для загрузки таблицы
-            time.sleep(3)
+            time.sleep(0.3)
             
             # Парсим таблицу
             table = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table")))
@@ -133,6 +131,8 @@ def scrape_magtu_data():
     except Exception as e:
         print(f"Произошла ошибка при настройке драйвера: {str(e)}")
         return {}
+
+# def a
 
 
 if __name__ == "__main__":
