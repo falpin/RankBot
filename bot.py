@@ -148,3 +148,21 @@ async def create_tables():
         speciality JSON,
         FOREIGN KEY (telegram_id) REFERENCES TTA(telegram_id)
     )''')
+
+async def speciality(tta_data):
+    telegram_id = tta_data["telegram_id"]
+    result = await SQL_request("SELECT name FROM sqlite_master WHERE type='table' AND name='users';")
+    if not result:
+        await create_tables()
+
+    user_data = await SQL_request("SELECT * FROM users WHERE telegram_id=?", (telegram_id,), 'one')
+    if not user_data:
+        return {"snils":"Укажите снилc"}
+
+    if not user_data["snils"]:
+        return {"snils":"Укажите снилс"}
+
+    if not user_data["speciality"]:
+        return {"snils":"Загрузка"}
+        
+    return {"snils":"Пппп"}
