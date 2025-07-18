@@ -166,3 +166,16 @@ async def speciality(tta_data):
         return {"snils":"Загрузка"}
         
     return {"snils":"Пппп"}
+
+async def add_snils(tta_data):
+    telegram_id = tta_data["telegram_id"]
+    snils = tta_data.get("snils")
+    if snils:
+        token_data = await SQL_request("SELECT * FROM users WHERE telegram_id=?", (telegram_id,), 'one')
+        if token_data:
+            await SQL_request("UPDATE users SET snils = ? WHERE telegram_id = ?", (snils, telegram_id))
+        else:
+            await SQL_request('INSERT INTO users (telegram_id, snils) VALUES (?, ?)', (telegram_id, snils))
+            return
+    else:
+        return {"error_text":"Не верный токен"}
