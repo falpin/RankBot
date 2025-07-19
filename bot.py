@@ -1,4 +1,4 @@
-VERSION="1.0.4"
+VERSION="1.0.4.1"
 
 import requests
 import json
@@ -144,7 +144,7 @@ async def get_speciality(tta_data):
         current_time_dt = datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S')
         if current_time_dt - time_add_dt > timedelta(hours=1):
             rank_data = parser.scrape_magtu_data(speciality["Направление"])
-            await SQL_request("UPDATE specialties SET data = ? WHERE name = ?", (rank_data, speciality["Направление"]))
+            await SQL_request("UPDATE specialties SET data = ?, time_add=? WHERE name = ?", (json.dumps(rank_data), current_time, speciality["Направление"]))
         else:
             rank_data = (speciality_data["data"])
 
@@ -152,21 +152,20 @@ async def get_speciality(tta_data):
     data = {}
     
     if rank_data:
-        # Фильтрация поступивших
-        admitted_students = {snils: info for snils, info in rank_data.items() if info.get("Поступил")}
-        admitted_points = [int(info["Баллы"]) for info in admitted_students.values()]
         count_priority = sum(1 for info in rank_data.values() if info.get("Приоритет") == 1)
-
-        # Получение данных текущего пользователя
-        user_info = rank_data.get(snils)
-        user_points = int(user_info["Баллы"]) if user_info else None
+        admitted_students = {student_snils: info for student_snils, info in rank_data.items() if info.get("Поступил")}
+        admitted_points = [int(info["Баллы"]) for info in admitted_students.values()]
+        
+        points = None
+        
+        if snils in rank_data:
+            points = int(rank_data[snils]["Баллы"])
+        
         admitted_pos = None
-
-        # Корректный расчет позиции среди поступивших
-        if user_info and user_info.get("Поступил"):
-            # Считаем количество поступивших с баллами ВЫШЕ пользователя
-            higher_scores = sum(1 for points in admitted_points if points > user_points)
-            admitted_pos = higher_scores + 1  # Позиция = кол-во выше + 1
+        
+        if points is not None:
+            admitted_pos = sum(1 for all_points in admitted_points if all_points > points) + 1
+        
 
         data = {
             'speciality_name': markdown(speciality["Направление"], True),
